@@ -1,0 +1,43 @@
+attrs==21.4.0
+backports-abc==0.5
+backports.functools-lru-cache==1.6.4
+bkcharts==0.2
+bokeh==0.13.0
+cachetools==3.1.1
+certifi==2020.6.20
+chardet==4.0.0
+cloudpickle==0.8.0
+conda==4.3.16
+configparser==4.0.2
+cycler==0.10.0
+Cython==0.29.33
+dask==1.2.2
+enum34==1.1.10
+futures==3.3.0
+idna==2.10
+Jinja2==2.9.6
+kiwisolver == 1.1.0
+locket==0.2.0
+MarkupSafe==1.1.1
+matplotlib==2.2.5
+netCDF4==1.2.4
+numpy==1.15.4
+packaging ==19.1
+pandas==0.24.2
+partd==0.3.8
+pyparsing==2.2.0
+python-dateutil==2.6.1
+pytz==2023.3
+PyYAML==3.12
+requests==2.14.2
+ruamel.ordereddict ==0.4.15
+ruamel.yaml==0.16.13
+ruamel.yaml.clib == 0.2.2
+singledispatch == 3.7.0
+scipy==0.19.1
+six==1.10.0
+subprocess32==3.5.4
+toolz==0.10.0
+tornado==4.5.1
+xarray==0.9.6
+xmitgcm==0.2.1
