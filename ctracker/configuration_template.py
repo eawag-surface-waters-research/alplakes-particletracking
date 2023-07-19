@@ -31,6 +31,12 @@
 # Directory containing the hydrodynamics fields
 gcm_directory = "$gcm_directory"
 
+# Variables stored in one file or in seperate files?
+# (If multivariable, must be of format 'UVEL','VVEL','WVEL','THETA')
+multivariable_gcm_out = True
+
+# mitgcm output filename root
+gcm_out_root = "3Dsnaps"
 # u-velocity filename root
 u_root = "UVEL"
 # v-velocity filename root
@@ -39,27 +45,24 @@ v_root = "VVEL"
 w_root = "WVEL"
 
 # output data type (">f8" for double precision, ">f4" for single)
-out_prec = ">f4"
+out_prec = ">f8"
 
 # grid geometry used in the MITgcm simulation
-gcm_geometry = "curvilinear"
+gcm_geometry = "cartesian"
 
 # reference date of MITgcm simulation
-gcm_start = "2013-11-12 12:00"
+gcm_start = "2008-03-01 00:00"
 
 # MITgcm time step in seconds
-gcm_dt = 20.0
+gcm_dt = $gcm_dt
 
 # MITgcm output time step in seconds
-out_dt = 1800.0
+out_dt = $out_dt
 
-
-#
 # Simulation configuration
-#
 
 # file name for output (netcdf)
-outfile = "results/tracks.nc"
+outfile = "$outfile"
 
 # compression level in the output file,
 # between 0 (larger file size, faster writing)
@@ -67,14 +70,14 @@ outfile = "results/tracks.nc"
 # Usually a small value, 2 or 3, is already
 # enough to reduce substantially the file size
 # without slowing down the code too much
-complevel = 3
+complevel = 2
 
 # HDF5 internals configuration
 # useful for speeding up IO
 # chunking size along particle id direction
-chunk_id = 200
+chunk_id = 1 #200
 # chunking size along time direction
-chunk_time = 20
+chunk_time = 1 #20
 
 # what output to produce:
 # "gcmstep": output at the time step of the GCM,
@@ -85,47 +88,27 @@ chunk_time = 20
 # "cross": output at cell crossing
 outfreq = "gcmstep"
 
-# do we want to run a 2D simulation?
-is2D = False
-
 # if outfreq == "gcmstep", one can decide to output
 # only at multiple integers of the GCM step
 # 1: every timestep, 2: every other, ...
-out_gcmstep = 2
+out_gcmstep = 1
 
 # start date of particle tracking simulation
-start = "2015-12-12 12:30"
+start = "$start"
 
 # end date of particle tracking simulation
-end = "2017-01-01 00:00"
+end = "$end"
 
 # list of seed points coordinates
-# we release a Gaussian off the Rhone
 import numpy as np
+# we seed along a transect off the Rhone outflow
+f = np.load("$particles")
+for k, v in f.items():
+        exec("{:s}=v.astype('float64')".format(k))
 
-n_points = 33
-# center of distribution
-p0 = (554500., 139300.) # km CH03
-# radius (std of gaussian, in m)
-s0 = 100.0
-
-np.random.seed(1983)
-xy = np.random.multivariate_normal(p0,
-                                   [[s0*s0, 0.0], [0.0, s0*s0]],
-                                   n_points)
-xs = xy[:, 0]
-ys = xy[:, 1]
-
-zs = np.array([ 5.0, 10.0, 15.0,
-               20.0, 25.0, 30.0,
-               50.0, 55.0, 60.0])
-
-X, Z = np.meshgrid(xs, zs)
-Y, Z = np.meshgrid(ys, zs)
-x_seed = X.ravel()
-y_seed = Y.ravel()
-z_seed = Z.ravel()
-
+x_seed = f[f.files[0]]
+y_seed = f[f.files[1]]
+z_seed = f[f.files[2]]
 # if inds_seed is True, x_seed, y_seed and z_seed are
 # given in terms of (fractional) indices, otherwise they
 # are interpreted as being in the same units as the MITgcm grid
@@ -134,16 +117,16 @@ inds_seed = False
 # Note that seeding only takes place at the GCM output time
 # If you pass the wrong time, no seeding will take place.
 # seeding start time
-seed_start = "2015-12-12 12:30"
+seed_start = "$start"
 
 # seeding end time
-seed_end = "2017-01-01 00:00"
+seed_end = "$end"
 
 # seeding interval in seconds
-seed_interval = 14400
+seed_interval = 3600
 
 # number of substeps between GCM output
-subiters = 1000
+subiters = 10
 
 # forward (1) or backwards (-1) integration
 ff = 1
@@ -151,11 +134,17 @@ ff = 1
 # define corners of area where particles will be killed
 # more than one is possible
 # given in (fractional) grid indices of the GCM
-iende = [10.0]
+iende = [0.0]
 iendw = [0.0]
-jendn = [100.0]
+jendn = [0.0]
 jends = [0.0]
 
+# do we want to run a 2D simulation?
+is2D = False
+
+gcm_endian = '<'
+
+n_min_part_per_thread = 30000
 
 #
 # Configure parallelism
@@ -164,6 +153,4 @@ jends = [0.0]
 #
 
 # number of threads to use. If 1, run serially
-n_procs = 32
-# minimum number of particles a thread is started with
-n_min_part_per_thread = 500
+n_procs = 1
