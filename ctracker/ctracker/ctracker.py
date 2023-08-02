@@ -29,6 +29,7 @@ from __future__ import division, print_function
 import numpy as np
 from modules.writetools import loc_time_fast
 
+
 class ctracker(object):
 
     def __init__(self, config_file):
@@ -95,7 +96,7 @@ class ctracker(object):
             raise ValueError("Outfreq not recognised")
 
         self.subiters = int(d.subiters)
-        self.dstep = 1.0/self.subiters
+        self.dstep = 1.0 / self.subiters
         self.dtmax = self.out_dt * self.dstep
         if float(d.ff) not in [1.0, -1.0]:
             raise ValueError("ff controls the time direction, "
@@ -120,22 +121,22 @@ class ctracker(object):
         # Check whether the directory contains the expected mitgcm outfiles
         if self.multivariable_gcm_out:
             file_list = os.listdir(d.gcm_directory)
-            if not([fn for fn in file_list if d.gcm_out_root in fn]):
+            if not ([fn for fn in file_list if d.gcm_out_root in fn]):
                 raise ValueError("Error loading mitgcm data. Check ctracker configuration file.")
         else:
             file_list = os.listdir(d.gcm_directory)
-            if not([fn for fn in file_list if d.u_root in fn]):
+            if not ([fn for fn in file_list if d.u_root in fn]):
                 raise ValueError("Error loading mitgcm data. Check ctracker configuration file.")
 
         self.is2D = d.is2D;
         print("\nSimulation in 2D : ", self.is2D)
 
         # open data directory to load grid data
-        if self.multivariable_gcm_out :
+        if self.multivariable_gcm_out:
             self.grid = mitgcmds(d.gcm_directory, read_grid=True,
                                  iters=[], prefix=[d.gcm_out_root],
                                  swap_dims=False, geometry=self.gcm_geometry,
-                                 ref_date=self.gcm_start, delta_t=self.gcm_dt,endian=self.gcm_endian)
+                                 ref_date=self.gcm_start, delta_t=self.gcm_dt, endian=self.gcm_endian)
         else:
             self.grid = mitgcmds(d.gcm_directory, read_grid=True,
                                  iters=[], prefix=[d.u_root, d.v_root, d.w_root],
@@ -156,7 +157,7 @@ class ctracker(object):
 
         self.grid_shape = self.dzt.shape
         if self.multivariable_gcm_out:
-            self.gcm_data_shape = (3,) + self.grid_shape # changed and then unchanged by Abolfazl Irani Rahaghi
+            self.gcm_data_shape = (3,) + self.grid_shape  # changed and then unchanged by Abolfazl Irani Rahaghi
 
         self.kmax, self.jmax, self.imax = self.grid_shape
 
@@ -164,16 +165,16 @@ class ctracker(object):
         zG[1:, ...] = np.cumsum(self.dzt[::-1], axis=0)
         # tracmass has opposite Z order
         zG = zG[::-1, ...]
-        #print('Abolfazl test2',np.sum((self.grid.hFacC).to_masked_array().filled(0).astype("float32")==0))
+        # print('Abolfazl test2',np.sum((self.grid.hFacC).to_masked_array().filled(0).astype("float32")==0))
         self.Z = np.ascontiguousarray(zG).astype("float32")
         self.dxyz = self.dxdy * self.dzt
         if np.any(self.dxyz < 0.0):
             raise ValueError("Cells with negative volume.")
         if np.any((self.dxyz == 0.0) & (self.grid.hFacC[::-1, :, :] != 0.0)):
             raise ValueError("Zero cell volumes.")
-        print(np.any(self.dxyz[-2,:,:]==0.0))
+        print(np.any(self.dxyz[-2, :, :] == 0.0))
         self.dsmax = self.dtmax / self.dxyz
-        #print(self.dsmax[:,200,200])
+        # print(self.dsmax[:,200,200])
         self.dzu = np.ascontiguousarray((self.grid.drF *
                                          self.grid.hFacW * self.grid.dyG)
                                         .to_masked_array()
@@ -187,7 +188,7 @@ class ctracker(object):
 
         self.CS = 1
         self.SN = 0
-        if self.gcm_geometry in ("curvilinear", ):
+        if self.gcm_geometry in ("curvilinear",):
             self.CS = self.grid.CS \
                 .to_masked_array().filled(0).astype("float32")
             self.SN = self.grid.SN \
@@ -218,7 +219,7 @@ class ctracker(object):
         self.ijk_indseed, self.ijk_seed = \
             self._ijkseed(d.x_seed, d.y_seed, d.z_seed, d.inds_seed)
         self.xyz_seed = np.zeros(self.ijk_seed.shape)
-        if self.gcm_geometry in ("curvilinear", ):
+        if self.gcm_geometry in ("curvilinear",):
             transform(self.ijk_seed[:, 0],
                       self.ijk_seed[:, 1],
                       self.ijk_seed[:, 2],
@@ -241,8 +242,8 @@ class ctracker(object):
         d.jends = np.asarray(d.jends)
         self.nend = d.iende.size
         if (self.nend != d.iendw.size) or \
-           (self.nend != d.jendn.size) or \
-           (self.nend != d.jends.size):
+                (self.nend != d.jendn.size) or \
+                (self.nend != d.jends.size):
             raise ValueError("Wrong kill area definition")
         self.iende = d.iende
         self.jendn = d.jendn
@@ -267,7 +268,7 @@ class ctracker(object):
         # forward integration
         self.iters = np.arange(iter_i, iter_e + 1, int(self.out_dt / self.gcm_dt))
         # backward integration
-        if self.ff == -1.0:   
+        if self.ff == -1.0:
             self.iters = self.iters[::-1]
         if self.iters.size < 2:
             raise ValueError("To start the computation, the simulation "
@@ -325,9 +326,6 @@ class ctracker(object):
 
     # end init
 
-
-
-
     def _ijkseed(self, ii, jj, kk, inds):
         """
         Define the ii, jj, kk indices from which particles will be
@@ -351,10 +349,10 @@ class ctracker(object):
 
         if inds:
             return np.atleast_2d(np.asarray(zip(
-                         np.int16(ii),
-                         np.int16(jj),
-                         np.int16(kk)))), \
-                   np.atleast_2d(np.asarray(zip(ii, jj, kk)))
+                np.int16(ii),
+                np.int16(jj),
+                np.int16(kk)))), \
+                np.atleast_2d(np.asarray(zip(ii, jj, kk)))
         else:
             # if MITgcm coordinates are passed, we have to load the model grid
             # and then translate into the "normalised" index coordinates of
@@ -366,16 +364,15 @@ class ctracker(object):
 
             xG = self.xGp1
             yG = self.yGp1
-            
+
             dX = self.dX
             dY = self.dY
-            if self.gcm_geometry in ("curvilinear", ):
+            if self.gcm_geometry in ("curvilinear",):
                 cs = self.CS
                 sn = self.SN
             dZ = self.dzt
             zG = self.Z
-            
-            
+
             iout = np.zeros(ii.size) * np.nan
             jout = np.zeros(ii.size) * np.nan
             kout = np.zeros(ii.size) * np.nan
@@ -384,15 +381,15 @@ class ctracker(object):
             kindout = np.zeros(ii.size, dtype="int16")
             for nn, (xx, yy, zz) in enumerate(zip(ii, jj, kk)):
                 jseed, iseed = np.unravel_index(
-                       np.argmin((xx-xG)**2 + (yy-yG)**2), xG.shape)
+                    np.argmin((xx - xG) ** 2 + (yy - yG) ** 2), xG.shape)
                 if iseed >= self.imax:
                     iseed -= 1
                 if jseed >= self.jmax:
                     jseed -= 1
                 p = Path([[xG[jseed, iseed], yG[jseed, iseed]],
-                          [xG[jseed+1, iseed], yG[jseed+1, iseed]],
-                          [xG[jseed+1, iseed+1], yG[jseed+1, iseed+1]],
-                          [xG[jseed, iseed+1], yG[jseed, iseed+1]]])
+                          [xG[jseed + 1, iseed], yG[jseed + 1, iseed]],
+                          [xG[jseed + 1, iseed + 1], yG[jseed + 1, iseed + 1]],
+                          [xG[jseed, iseed + 1], yG[jseed, iseed + 1]]])
 
                 # is the point inside this polygon?
                 if not p.contains_point((xx, yy)):
@@ -400,12 +397,12 @@ class ctracker(object):
                         inew = iseed + ijtry[0]
                         jnew = jseed + ijtry[1]
                         if (inew >= self.imax) or (jnew >= self.jmax) or \
-                           (inew < 0) or (jnew < 0):
-                               continue
+                                (inew < 0) or (jnew < 0):
+                            continue
                         p = Path([[xG[jnew, inew], yG[jnew, inew]],
-                                  [xG[jnew+1, inew], yG[jnew+1, inew]],
-                                  [xG[jnew+1, inew+1], yG[jnew+1, inew+1]],
-                                  [xG[jnew, inew+1], yG[jnew, inew+1]]])
+                                  [xG[jnew + 1, inew], yG[jnew + 1, inew]],
+                                  [xG[jnew + 1, inew + 1], yG[jnew + 1, inew + 1]],
+                                  [xG[jnew, inew + 1], yG[jnew, inew + 1]]])
 
                         if not p.contains_point((xx, yy)):
                             continue
@@ -417,7 +414,7 @@ class ctracker(object):
                         raise ValueError("Could not find the point "
                                          "(x=%f, y=%f)" % (xx, yy))
 
-                if self.gcm_geometry in ("curvilinear", ):
+                if self.gcm_geometry in ("curvilinear",):
                     nx, ny = xy2grid(xx - xG[jseed, iseed],
                                      yy - yG[jseed, iseed],
                                      dX[jseed, iseed], dY[jseed, iseed],
@@ -426,7 +423,7 @@ class ctracker(object):
                     nx = (xx - xG[jseed, iseed]) / dX[jseed, iseed]
                     ny = (yy - yG[jseed, iseed]) / dY[jseed, iseed]
                 # in case there is some edge issue
-                if nx < 0 or nx >=1 or ny < 0 or ny >= 1:
+                if nx < 0 or nx >= 1 or ny < 0 or ny >= 1:
                     print("\nInvalid point at "
                           "x,y,z=%.2f,%.2f,%.2f" % (xx, yy, zz))
                     print("i,j=%d,%d" % (iseed, jseed))
@@ -439,7 +436,7 @@ class ctracker(object):
                           "x,y,z=%.2f,%.2f,%.2f" % (xx, yy, zz))
                     continue
                 kk = np.where(z_here > zz)[0][-1]
-                nz = (zz - z_here[kk]) / (z_here[kk+1] - z_here[kk])
+                nz = (zz - z_here[kk]) / (z_here[kk + 1] - z_here[kk])
                 if self.dxyz[kk, jseed, iseed] == 0:
                     print("\nPoint on land "
                           "x,y,z=%.2f,%.2f,%.2f" % (xx, yy, zz))
@@ -451,17 +448,15 @@ class ctracker(object):
                 jout[nn] = jseed + ny
                 kout[nn] = kk + nz
             return np.atleast_2d(np.asarray(zip(
-                         iindout[np.isfinite(iout)],
-                         jindout[np.isfinite(jout)],
-                         kindout[np.isfinite(kout)]))), \
+                iindout[np.isfinite(iout)],
+                jindout[np.isfinite(jout)],
+                kindout[np.isfinite(kout)]))), \
                 np.atleast_2d(np.asarray(zip(
-                         iout[np.isfinite(iout)],
-                         jout[np.isfinite(jout)],
-                         kout[np.isfinite(kout)])))
+                    iout[np.isfinite(iout)],
+                    jout[np.isfinite(jout)],
+                    kout[np.isfinite(kout)])))
+
     # end _ijkseed
-
-
-
 
     def _get_geometry(self):
         """
@@ -501,10 +496,8 @@ class ctracker(object):
         else:
             raise ValueError("Grid geometry not recognised.")
         return xG, yG
+
     # end _get_geometry
-
-
-
 
     def _nc_init(self, nc_f, kind):
         if kind == "inout":
@@ -532,13 +525,13 @@ class ctracker(object):
             nc_f.createVariable("t_ini", "float64", ("pid",), fill_value=-1.0)
             ncvar = nc_f.variables["t_ini"]
             ncvar.setncattr("units", ("seconds since %s" %
-                            self.gcm_start.astype("datetime64[s]"))
+                                      self.gcm_start.astype("datetime64[s]"))
                             .replace("T", " "))
             # end time
             nc_f.createVariable("t_end", "float64", ("pid",), fill_value=-1.0)
             ncvar = nc_f.variables["t_end"]
             ncvar.setncattr("units", ("seconds since %s" %
-                            self.gcm_start.astype("datetime64[s]"))
+                                      self.gcm_start.astype("datetime64[s]"))
                             .replace("T", " "))
             # i-position at seeding
             nc_f.createVariable("i_ini", "float32", ("pid",),
@@ -624,7 +617,7 @@ class ctracker(object):
             nc_f.createVariable("time", "float64", ("time",))
             ncvar = nc_f.variables["time"]
             ncvar.setncattr("units", ("seconds since %s" %
-                            self.gcm_start.astype("datetime64[s]"))
+                                      self.gcm_start.astype("datetime64[s]"))
                             .replace("T", " "))
             # write times are highly dependent on the chunking in use
             chunks = (self.chunk_id, self.chunk_time)
@@ -668,10 +661,8 @@ class ctracker(object):
             raise ValueError("Unrecognised case")
 
         nc_f.sync()
+
     # end _nc_init
-
-
-
 
     def _nc_write_one_time(self, nc_f, time, ids, ijk, xyz,
                            outc=None, init=False):
@@ -705,9 +696,6 @@ class ctracker(object):
             nc_f.variables["ytrack"][ids, tind] = xyz[:, 1]
             nc_f.variables["ztrack"][ids, tind] = xyz[:, 2]
 
-
-
-
     def _loc_time(self, nc_f, time):
         ind = loc_time_fast(self.nc_time, self.nc_time.size,
                             time, False)
@@ -721,9 +709,6 @@ class ctracker(object):
             ind = self.nc_time.size - 1
             nc_f.variables["time"][ind] = time
             return ind
-
-
-
 
     def run(self):
         """
@@ -788,7 +773,7 @@ class ctracker(object):
                 # define flux arrays
                 uflux = np.zeros((2, self.kmax, self.jmax, self.imax + 1),
                                  "float64")
-                
+
                 vflux = np.zeros((2, self.kmax, self.jmax + 1, self.imax),
                                  "float64")
                 wflux = np.zeros((2, self.kmax + 1, self.jmax, self.imax),
@@ -798,69 +783,70 @@ class ctracker(object):
                 fstamp_old = "%010d.data" % it_old
                 # read new GCM step for interpolating
                 fstamp_new = "%010d.data" % it_new
-################
-################
-################
+                ################
+                ################
+                ################
                 if self.multivariable_gcm_out:
                     # old GCM step
-                    #print('test')
+                    # print('test')
                     gcm_velocity_old = np.fromfile(self.gcm_out_root + fstamp_old,
-                                                      dtype=self.out_prec) \
-                        .reshape(self.gcm_data_shape)[:,::-1, ...] #chnaged by Abolfazl Irani Rahaghi
-                    #print(gcm_velocity_old[0,:,200,200])
-                    #print(gcm_velocity_old[0,...].shape)
-                    #print(self.dzu[:,200,200])
-                    #print(self.ff.shape)
-                    uflux[0, :, :, :-1] = gcm_velocity_old[0,...] * self.dzu * self.ff
-                    vflux[0, :, :-1, :] = gcm_velocity_old[1,...] * self.dzv * self.ff
-                    #print(gcm_velocity_old[0,:,10,70])
-                    #print('veloity',gcm_velocity_old[0,...].shape)
-                    #print('dzv',self.dzv.shape)
-                    
+                                                   dtype=self.out_prec) \
+                                           .reshape(self.gcm_data_shape)[:, ::-1,
+                                       ...]  # chnaged by Abolfazl Irani Rahaghi
+                    # print(gcm_velocity_old[0,:,200,200])
+                    # print(gcm_velocity_old[0,...].shape)
+                    # print(self.dzu[:,200,200])
+                    # print(self.ff.shape)
+                    uflux[0, :, :, :-1] = gcm_velocity_old[0, ...] * self.dzu * self.ff
+                    vflux[0, :, :-1, :] = gcm_velocity_old[1, ...] * self.dzv * self.ff
+                    # print(gcm_velocity_old[0,:,10,70])
+                    # print('veloity',gcm_velocity_old[0,...].shape)
+                    # print('dzv',self.dzv.shape)
+
                     if not self.is2D:
-                        wflux[0, 1:, :, :] = gcm_velocity_old[2,...] * self.dxdy * self.ff
-                    
+                        wflux[0, 1:, :, :] = gcm_velocity_old[2, ...] * self.dxdy * self.ff
 
                     # new GCM step
                     gcm_velocity_new = np.fromfile(self.gcm_out_root + fstamp_new,
-                                                      dtype=self.out_prec) \
-                        .reshape(self.gcm_data_shape)[:,::-1, ...] #chnaged by Abolfazl Irani Rahaghi
-                    uflux[1, :, :, :-1] = gcm_velocity_new[0,...] * self.dzu * self.ff
-                    vflux[1, :, :-1, :] = gcm_velocity_new[1,...] * self.dzv * self.ff
+                                                   dtype=self.out_prec) \
+                                           .reshape(self.gcm_data_shape)[:, ::-1,
+                                       ...]  # chnaged by Abolfazl Irani Rahaghi
+                    uflux[1, :, :, :-1] = gcm_velocity_new[0, ...] * self.dzu * self.ff
+                    vflux[1, :, :-1, :] = gcm_velocity_new[1, ...] * self.dzv * self.ff
                     if not self.is2D:
-                        wflux[1, 1:, :, :] = gcm_velocity_old[2,...] * self.dxdy * self.ff
-                    
+                        wflux[1, 1:, :, :] = gcm_velocity_old[2, ...] * self.dxdy * self.ff
+
                 else:
                     # old GCM step
                     uflux[0, :, :, :-1] = np.fromfile(self.u_root + fstamp_old,
                                                       dtype=self.out_prec) \
-                        .reshape(self.grid_shape)[::-1, ...] * self.dzu * self.ff
+                                              .reshape(self.grid_shape)[::-1, ...] * self.dzu * self.ff
 
                     vflux[0, :, :-1, :] = np.fromfile(self.v_root + fstamp_old,
                                                       dtype=self.out_prec) \
-                        .reshape(self.grid_shape)[::-1, ...] * self.dzv * self.ff
+                                              .reshape(self.grid_shape)[::-1, ...] * self.dzv * self.ff
 
                     if not self.is2D:
                         wflux[0, 1:, :, :] = np.fromfile(self.w_root + fstamp_old,
                                                          dtype=self.out_prec) \
-                            .reshape(self.grid_shape)[::-1, ...] * self.dxdy * self.ff
+                                                 .reshape(self.grid_shape)[::-1, ...] * self.dxdy * self.ff
 
                     # new GCM step
                     uflux[1, :, :, :-1] = np.fromfile(self.u_root + fstamp_new,
                                                       dtype=self.out_prec) \
-                        .reshape(self.grid_shape)[::-1, ...] * self.dzu * self.ff
+                                              .reshape(self.grid_shape)[::-1, ...] * self.dzu * self.ff
 
                     vflux[1, :, :-1, :] = np.fromfile(self.v_root + fstamp_new,
                                                       dtype=self.out_prec) \
-                        .reshape(self.grid_shape)[::-1, ...] * self.dzv * self.ff
+                                              .reshape(self.grid_shape)[::-1, ...] * self.dzv * self.ff
 
                     if not self.is2D:
                         wflux[1, 1:, :, :] = np.fromfile(self.w_root + fstamp_new,
                                                          dtype=self.out_prec) \
-                            .reshape(self.grid_shape)[::-1, ...] * self.dxdy * self.ff
-################
-################
-################
+                                                 .reshape(self.grid_shape)[::-1, ...] * self.dxdy * self.ff
+                ################
+                ################
+                ################
 
                 INq.put((ngi, uflux.copy(), vflux.copy(), wflux.copy()))
 
@@ -932,6 +918,7 @@ class ctracker(object):
                     nc_inout.sync()
                     nc_run.sync()
                     ncall = 0
+
         # end def OUTworker
 
         # start the output thread
@@ -1023,7 +1010,7 @@ class ctracker(object):
 
                 # compute tracks
                 # The actual computation is done in C
-                if self.n_procs > 1 and self._ntact >= 2*self.n_min_part_per_thread:
+                if self.n_procs > 1 and self._ntact >= 2 * self.n_min_part_per_thread:
                     n_threads = self._ntact // (self.n_min_part_per_thread)
                     n_part_per_thread = self._ntact // n_threads
                     if n_threads > self.n_procs:
@@ -1043,79 +1030,79 @@ class ctracker(object):
                         # Make sure we don't forget some particle
                         if npr == (n_threads - 1):
                             n1 = None
-                        if self.gcm_geometry in ("curvilinear", ):
-	                        trd = Thread(
-	                                   target=loop_nogil,
-	                                   args=(xyz[n0:n1, ...],
-	                                         ijk[n0:n1, ...],
-	                                         out_tijk[n0:n1, ...],
-	                                         out_xyz[n0:n1, ...],
-	                                         out_code[n0:n1],
-	                                         self.imax,
-	                                         self.jmax,
-	                                         self.kmax,
-	                                         self.out_dt,
-	                                         self.dsmax,
-	                                         self.dxyz,
-	                                         uflux,
-	                                         vflux,
-	                                         wflux,
-	                                         self.dtmax,
-	                                         self.dstep,
-	                                         self.nend,
-	                                         self.iendw,
-	                                         self.iende,
-	                                         self.jends,
-	                                         self.jendn,
-	                                         will_write,
-	                                         nvals,
-	                                         self.subiters,
-	                                         self.xG,
-	                                         self.yG,
-	                                         self.dX,
-	                                         self.dY,
-	                                         self.CS,
-	                                         self.SN,
-	                                         self.Z))
+                        if self.gcm_geometry in ("curvilinear",):
+                            trd = Thread(
+                                target=loop_nogil,
+                                args=(xyz[n0:n1, ...],
+                                      ijk[n0:n1, ...],
+                                      out_tijk[n0:n1, ...],
+                                      out_xyz[n0:n1, ...],
+                                      out_code[n0:n1],
+                                      self.imax,
+                                      self.jmax,
+                                      self.kmax,
+                                      self.out_dt,
+                                      self.dsmax,
+                                      self.dxyz,
+                                      uflux,
+                                      vflux,
+                                      wflux,
+                                      self.dtmax,
+                                      self.dstep,
+                                      self.nend,
+                                      self.iendw,
+                                      self.iende,
+                                      self.jends,
+                                      self.jendn,
+                                      will_write,
+                                      nvals,
+                                      self.subiters,
+                                      self.xG,
+                                      self.yG,
+                                      self.dX,
+                                      self.dY,
+                                      self.CS,
+                                      self.SN,
+                                      self.Z))
                         else:
                             trd = Thread(
-                                       target=loopC_nogil,
-                                       args=(xyz[n0:n1, ...],
-                                             ijk[n0:n1, ...],
-                                             out_tijk[n0:n1, ...],
-                                             out_xyz[n0:n1, ...],
-                                             out_code[n0:n1],
-                                             self.imax,
-                                             self.jmax,
-                                             self.kmax,
-                                             self.out_dt,
-                                             self.dsmax,
-                                             self.dxyz,
-                                             uflux,
-                                             vflux,
-                                             wflux,
-                                             self.dtmax,
-                                             self.dstep,
-                                             self.nend,
-                                             self.iendw,
-                                             self.iende,
-                                             self.jends,
-                                             self.jendn,
-                                             will_write,
-                                             nvals,
-                                             self.subiters,
-                                             self.xG,
-                                             self.yG,
-                                             self.dX,
-                                             self.dY,
-                                             self.Z))
+                                target=loopC_nogil,
+                                args=(xyz[n0:n1, ...],
+                                      ijk[n0:n1, ...],
+                                      out_tijk[n0:n1, ...],
+                                      out_xyz[n0:n1, ...],
+                                      out_code[n0:n1],
+                                      self.imax,
+                                      self.jmax,
+                                      self.kmax,
+                                      self.out_dt,
+                                      self.dsmax,
+                                      self.dxyz,
+                                      uflux,
+                                      vflux,
+                                      wflux,
+                                      self.dtmax,
+                                      self.dstep,
+                                      self.nend,
+                                      self.iendw,
+                                      self.iende,
+                                      self.jends,
+                                      self.jendn,
+                                      will_write,
+                                      nvals,
+                                      self.subiters,
+                                      self.xG,
+                                      self.yG,
+                                      self.dX,
+                                      self.dY,
+                                      self.Z))
                         trd.daemon = True
                         trd.start()
                         threads.append(trd)
                     # wait for threads to finish (if they have not already)
                     [trd.join() for trd in threads]
                 else:
-                    if self.gcm_geometry in ("curvilinear", ):
+                    if self.gcm_geometry in ("curvilinear",):
                         loop_nogil(xyz,
                                    ijk,
                                    out_tijk,

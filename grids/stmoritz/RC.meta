@@ -2,7 +2,7 @@
  dimList = [
      1,    1,    1,
      1,    1,    1,
-    44,    1,   44
+    43,    1,   43
  ];
  dataprec = [ 'float32' ];
  nrecords = [          1 ];

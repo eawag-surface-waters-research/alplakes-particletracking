@@ -45,7 +45,7 @@ v_root = "VVEL"
 w_root = "WVEL"
 
 # output data type (">f8" for double precision, ">f4" for single)
-out_prec = ">f8"
+out_prec = "float32"
 
 # grid geometry used in the MITgcm simulation
 gcm_geometry = "cartesian"
@@ -54,10 +54,10 @@ gcm_geometry = "cartesian"
 gcm_start = "2008-03-01 00:00"
 
 # MITgcm time step in seconds
-gcm_dt = $gcm_dt
+gcm_dt = $simulation_timestep
 
 # MITgcm output time step in seconds
-out_dt = $out_dt
+out_dt = $simulation_output_timestep
 
 # Simulation configuration
 
@@ -75,9 +75,9 @@ complevel = 2
 # HDF5 internals configuration
 # useful for speeding up IO
 # chunking size along particle id direction
-chunk_id = 1 #200
+chunk_id = 200 #200
 # chunking size along time direction
-chunk_time = 1 #20
+chunk_time = 20 #20
 
 # what output to produce:
 # "gcmstep": output at the time step of the GCM,
@@ -120,13 +120,13 @@ inds_seed = False
 seed_start = "$start"
 
 # seeding end time
-seed_end = "$end"
+seed_end = "$start"
 
 # seeding interval in seconds
-seed_interval = 3600
+seed_interval = $simulation_output_timestep
 
 # number of substeps between GCM output
-subiters = 10
+subiters = 1000
 
 # forward (1) or backwards (-1) integration
 ff = 1
@@ -153,4 +153,4 @@ n_min_part_per_thread = 30000
 #
 
 # number of threads to use. If 1, run serially
-n_procs = 1
+n_procs = $threads
