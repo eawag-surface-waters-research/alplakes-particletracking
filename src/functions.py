@@ -188,23 +188,14 @@ def replace_string(file_path, target_string, replacement_string):
         file.write(modified_content)
 
 
-def plot_particle_tracking(working_dir, x0, y0, x1, y1):
+def plot_particle_tracking(working_dir, x0, y0, x1, y1, save=False, bathy=False):
     data = xr.open_dataset(os.path.join(working_dir, "output", "results_run.nc"), decode_times=True)
     inout = xr.open_dataset(os.path.join(working_dir, "output", "results_inout.nc"), decode_times=True)
 
     time_plt = data.time
-    xG = data.XG_p1
-    yG = data.YG_p1
-    xC = data.XC
-    yC = data.YC
-    bathy = data.Depth.to_masked_array()
-    gridAngle = np.arctan2(y1 - y0, x1 - x0)
-    xx_com = np.array(xG.data)
-    yy_com = np.array(yG.data)
-    xG_conv = (np.cos(gridAngle) * xx_com - np.sin(gridAngle) * yy_com) + x0
-    yG_conv = (np.sin(gridAngle) * xx_com + np.cos(gridAngle) * yy_com) + y0
+    depth = np.array(data.Depth[:])
 
-    # realease depth which will be plotted
+    # Release depth which will be plotted
     z0_ini = [0, 30]
     zdata = []
     sel_pid = inout.pid.where((inout.z_ini > z0_ini[0]) & (inout.z_ini <= z0_ini[1]), drop=True)
@@ -214,24 +205,20 @@ def plot_particle_tracking(working_dir, x0, y0, x1, y1):
     zd.ztrack.load()
     zdata.append(zd)
 
-    # create the grid for spatiotemporal plots
-
+    # Convert grid to model co-ordinates
+    xG = data.XG_p1
+    yG = data.YG_p1
+    gridAngle = np.arctan2(y1 - y0, x1 - x0)
     xg_plt = xG.to_masked_array().filled()
     yg_plt = yG.to_masked_array().filled()
-    font_feature = ['sans-serif', 16, 14]  # [fontname, fontsize_labels, fontsize_ticks]
-    gridAngle = np.arctan2(y1 - y0, x1 - x0)
     xp_conv = (np.cos(gridAngle) * xg_plt - np.sin(gridAngle) * yg_plt) + x0
     yp_conv = (np.sin(gridAngle) * xg_plt + np.cos(gridAngle) * yg_plt) + y0
-
     xp_conv *= 1.e-3
     yp_conv *= 1.e-3
+    outline = np.array(data.hFacC[0, :])
 
     for qq in range(len(time_plt)):
-        # cutoff_date = '2021-09-05T09:30:00.000000000'
-
-        ###############
         for zd in zdata:
-            # now = zd.sel(time=np.datetime64(cutoff_date), drop=True)
             now = zd.sel(time=time_plt[qq], drop=True)
             xp = (now.xtrack).to_masked_array().filled()
             xp[xp > 1e9] = np.nan
@@ -240,76 +227,69 @@ def plot_particle_tracking(working_dir, x0, y0, x1, y1):
             zp = now.ztrack.to_masked_array().filled()
             zp[zp > 450] = np.nan
 
-        ###############
         part_no_snap, _, _ = np.histogram2d(xp, yp, bins=[xg_plt[0, :], yg_plt[:, 0]])
         part_no_snap = part_no_snap.T
         part_no_snap[part_no_snap < 2] = np.nan
-        min_val = 2  # np.nanquantile(part_no_snap,0.2)
+        min_val = 2
         part_no_snap[part_no_snap < min_val] = np.nan
-        # max_val = np.nanquantile(part_no_snap,0.8)
 
-        ###############
         part_depth_snap = part_no_snap.copy()
         part_depth_snap[:, :] = 0
 
         for ii in range(len(xp)):
-            if ((~np.isnan(xp[ii])) & (~np.isnan(yp[ii]))):
+            if (~np.isnan(xp[ii])) & (~np.isnan(yp[ii])):
                 ind_x = np.searchsorted(0.5 * (xg_plt[0, :-1] + xg_plt[0, 1:]), xp[ii])
                 ind_y = np.searchsorted(0.5 * (yg_plt[:-1, 0] + yg_plt[1:, 0]), yp[ii])
-                if ((~np.isnan(zp[ii])) & (zp[ii] < 5)):
+                if (~np.isnan(zp[ii])) & (zp[ii] < 5):
                     part_depth_snap[ind_y, ind_x] = part_depth_snap[ind_y, ind_x] + zp[ii]
 
         part_depth_snap = part_depth_snap / part_no_snap
-        # part_depth_snap[part_depth_snap>60] = np.nan
-        # part_no_snap[part_depth_snap>10] = np.nan
 
-        fig_size = (8, 16)
-
+        fig_size = (8, 8)
         f = plt.figure(figsize=fig_size)
-        # cmocean.cm.balance
         ax = f.add_subplot(121)
-        # plt.pcolormesh(xp_conv[:-1,:-1], yp_conv[:-1,:-1],lake_arr,alpha=0.1)
-        # plt.hold=True
-        # SS = plt.pcolormesh(xx_sg,yy_sg,Temp, cmap=cmocean.cm.thermal,shading='flat')
-        SS = plt.pcolormesh(xp_conv[:-1, :-1], yp_conv[:-1, :-1], part_no_snap, vmin=np.nanquantile(part_no_snap, 0.25),
-                            vmax=np.nanquantile(part_no_snap, 0.75), cmap='viridis')
 
-        plt.xticks(fontname=font_feature[0], fontsize=font_feature[2])
-        plt.yticks(fontname=font_feature[0], fontsize=font_feature[2])
-
-        #     ax.set_xlim(497, 565)
-        #     ax.set_ylim(115, 155)
+        if bathy:
+            plt.pcolormesh(xp_conv[:-1, :-1], yp_conv[:-1, :-1], depth, cmap='Greys', vmax=np.max(depth) * 1.5)
+        else:
+            plt.pcolormesh(xp_conv[:-1, :-1], yp_conv[:-1, :-1], outline, cmap='Greys', vmax=10)
+        plt.pcolormesh(xp_conv[:-1, :-1], yp_conv[:-1, :-1], part_no_snap, vmin=np.nanquantile(part_no_snap, 0.25),
+                       vmax=np.nanquantile(part_no_snap, 0.75), cmap='viridis')
         ax.set_aspect('equal')
-        ax.set_xlabel("Lat (km CH1903)", fontname=font_feature[0], fontsize=font_feature[1])
-        ax.set_ylabel("Lon (km CH1903)", fontname=font_feature[0], fontsize=font_feature[1])
-        ax.annotate(str(time_plt[qq].values.astype("datetime64[m]")).replace("T", " "), xy=(0.02, 0.9),
-                    xycoords='axes fraction', fontname=font_feature[0], fontsize=font_feature[1])
+        ax.set_xlabel("Lat (km CH1903)")
+        ax.set_ylabel("Lon (km CH1903)")
+        ax.annotate(str(time_plt[qq].values.astype("datetime64[m]")).replace("T", " "), xy=(0.02, 0.97),
+                    xycoords='axes fraction')
 
-        cbar = plt.colorbar(fraction=0.02, orientation="horizontal", pad=-0.25, extend='max');
+        cbar = plt.colorbar(fraction=0.02, orientation="horizontal", pad=-0.1, extend='max')
         cbar.ax.set_xticklabels([])
         cbar.ax.set_xticks([])
-        cbar.set_label(label='$\mathregular{Particle \ concentration\ [-]}$', family=font_feature[0],
-                       size=font_feature[1])
+        cbar.set_label(label='$\mathregular{Particle \ concentration\ [-]}$')
 
         ax2 = f.add_subplot(122)
-        # plt.pcolormesh(xp_conv[:-1,:-1], yp_conv[:-1,:-1],lake_arr,alpha=0.1)
-        # plt.hold=True
-        # SS = plt.pcolormesh(xx_sg,yy_sg,Temp, cmap=cmocean.cm.thermal,shading='flat')
-        SS = plt.pcolormesh(xp_conv[:-1, :-1], yp_conv[:-1, :-1], part_depth_snap, cmap='jet', vmin=0, vmax=40)
-        plt.xticks(fontname=font_feature[0], fontsize=font_feature[2])
-        plt.yticks(fontname=font_feature[0], fontsize=font_feature[2])
-
+        if bathy:
+            plt.pcolormesh(xp_conv[:-1, :-1], yp_conv[:-1, :-1], depth, cmap='Greys', vmax=np.max(depth) * 1.5)
+        else:
+            plt.pcolormesh(xp_conv[:-1, :-1], yp_conv[:-1, :-1], outline, cmap='Greys', vmax=10)
+        plt.pcolormesh(xp_conv[:-1, :-1], yp_conv[:-1, :-1], part_depth_snap, cmap='jet', vmin=0, vmax=40)
         ax2.set_aspect('equal')
-        ax2.set_xlabel("Lat (km CH1903)", fontname=font_feature[0], fontsize=font_feature[1])
-        ax2.set_ylabel("Lon (km CH1903)", fontname=font_feature[0], fontsize=font_feature[1])
+        ax2.set_xlabel("Lat (km CH1903)")
+        ax2.axes.yaxis.set_ticklabels([])
 
-        cbar2 = plt.colorbar(fraction=0.02, orientation="horizontal", pad=-0.25, extend='max', ticks=[0, 10, 20]);
-        cbar2.ax.set_xticklabels([0, 10, 20], fontname=font_feature[0], fontsize=font_feature[2])
-        cbar2.set_label(label='$\mathregular{Depth\ [m]}$', family=font_feature[0], size=font_feature[1])
+        cbar2 = plt.colorbar(fraction=0.02, orientation="horizontal", pad=-0.1, extend='max', ticks=[0, 10, 20]);
+        cbar2.ax.set_xticklabels([0, 10, 20])
+        cbar2.set_label(label='$\mathregular{Depth\ [m]}$')
         cbar2.ax.xaxis.set_ticks_position('top')
 
-        #     plt.savefig(output_path+str(qq).zfill(3)+'_'+str(time_plt[qq].values.astype("datetime64[m]")).replace("T", " ")[0:10]+'H'+str(time_plt[qq].values.astype("datetime64[m]")).replace("T", " ")[11:13]+'.png',dpi=300, bbox_inches = 'tight')
+        if save:
+            out_dir = os.path.join(working_dir, "plots")
+            os.makedirs(out_dir, exist_ok=True)
+            plt.savefig(out_dir + "/plot" + '_' + str(time_plt[qq].values.astype("datetime64[m]")).replace("T", " ")[
+                                                  0:10] + 'H' + str(
+                time_plt[qq].values.astype("datetime64[m]")).replace("T", " ")[11:13] + '.png', dpi=300,
+                        bbox_inches='tight')
 
         plt.show()
         plt.close()
-
+    data.close()
+    inout.close()
