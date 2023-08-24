@@ -412,7 +412,7 @@ class ctracker(object):
                             break
                     else:
                         raise ValueError("Could not find the point "
-                                         "(x=%f, y=%f)" % (xx, yy))
+                                         "(x=%f, y=%f) in %s" % (xx, yy, p.get_extents()))
 
                 if self.gcm_geometry in ("curvilinear",):
                     nx, ny = xy2grid(xx - xG[jseed, iseed],

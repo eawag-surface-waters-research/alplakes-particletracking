@@ -3,4 +3,5 @@ ctracker/build
 runs/*
 data/*
 src/__pycache__
+ctracker/ctracker/__pycache__
 .idea

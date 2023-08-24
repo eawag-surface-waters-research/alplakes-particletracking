@@ -6,7 +6,8 @@ from functions import download_simulation_data, flip_list_dict, d3d_mitgcm_veloc
 
 def preprocess(run_id, lake, start_time, end_time, particles,
                api="https://alplakes-api.eawag.ch/simulations/file/delft3d-flow/{}/{}",
-               simulation_timestep=30, simulation_output_timestep=10800, threads=8):
+               simulation_timestep=30, simulation_output_timestep=10800, threads=8,
+               grid_type="cartesian"):
     root = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
     working_dir = os.path.join(root, "runs", "{}_{}_{}_{}".format(lake, start_time.strftime('%Y%m%d%H%M'),
                                                                   end_time.strftime('%Y%m%d%H%M'),
@@ -30,6 +31,7 @@ def preprocess(run_id, lake, start_time, end_time, particles,
 
     os.makedirs(os.path.join(working_dir, "output"), exist_ok=True)
 
+    replace_string(configuration_file, "$gcm_geometry", grid_type)
     replace_string(configuration_file, "$gcm_directory", velocity_field_dir)
     replace_string(configuration_file, "$simulation_timestep", str(simulation_timestep))
     replace_string(configuration_file, "$simulation_output_timestep", str(simulation_output_timestep))

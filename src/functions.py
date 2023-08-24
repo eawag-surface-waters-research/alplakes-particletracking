@@ -188,7 +188,7 @@ def replace_string(file_path, target_string, replacement_string):
         file.write(modified_content)
 
 
-def plot_particle_tracking(working_dir, x0, y0, x1, y1, save=False, bathy=False):
+def plot_particle_tracking(working_dir, x0, y0, x1, y1, save=False, bathy=False, plot=True):
     data = xr.open_dataset(os.path.join(working_dir, "output", "results_run.nc"), decode_times=True)
     inout = xr.open_dataset(os.path.join(working_dir, "output", "results_inout.nc"), decode_times=True)
 
@@ -276,7 +276,7 @@ def plot_particle_tracking(working_dir, x0, y0, x1, y1, save=False, bathy=False)
         ax2.set_xlabel("Lat (km CH1903)")
         ax2.axes.yaxis.set_ticklabels([])
 
-        cbar2 = plt.colorbar(fraction=0.02, orientation="horizontal", pad=-0.1, extend='max', ticks=[0, 10, 20]);
+        cbar2 = plt.colorbar(fraction=0.02, orientation="horizontal", pad=-0.1, extend='max', ticks=[0, 10, 20])
         cbar2.ax.set_xticklabels([0, 10, 20])
         cbar2.set_label(label='$\mathregular{Depth\ [m]}$')
         cbar2.ax.xaxis.set_ticks_position('top')
@@ -288,8 +288,9 @@ def plot_particle_tracking(working_dir, x0, y0, x1, y1, save=False, bathy=False)
                                                   0:10] + 'H' + str(
                 time_plt[qq].values.astype("datetime64[m]")).replace("T", " ")[11:13] + '.png', dpi=300,
                         bbox_inches='tight')
+        if plot:
+            plt.show()
 
-        plt.show()
         plt.close()
     data.close()
     inout.close()

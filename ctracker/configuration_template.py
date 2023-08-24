@@ -48,7 +48,7 @@ w_root = "WVEL"
 out_prec = "float32"
 
 # grid geometry used in the MITgcm simulation
-gcm_geometry = "cartesian"
+gcm_geometry = "$gcm_geometry"
 
 # reference date of MITgcm simulation
 gcm_start = "2008-03-01 00:00"
