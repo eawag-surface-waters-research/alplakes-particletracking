@@ -34,7 +34,7 @@ for lake in lakes:
         print("Running particle tracking")
         subprocess.run(command, check=True, shell=True, cwd=script_directory)
         print("Plotting outputs")
-        plot_particle_tracking(out["working_dir"], out["x0"], out["y0"], out["x1"], out["y1"], save=True, plot=False)
+        plot_particle_tracking(out["working_dir"], out["x0"], out["y0"], out["x1"], out["y1"], lake["name"], save=True, plot=False, grid_type=lake["type"])
         print("Complete")
     except Exception as e:
         failed.append(lake["name"])

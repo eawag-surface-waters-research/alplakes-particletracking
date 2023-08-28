@@ -8,7 +8,7 @@ def preprocess(run_id, lake, start_time, end_time, particles,
                api="https://alplakes-api.eawag.ch/simulations/file/delft3d-flow/{}/{}",
                simulation_timestep=30, simulation_output_timestep=10800, threads=8,
                grid_type="cartesian"):
-    root = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    root = os.path.dirname(os.path.dirname(os.path.realpath("__file__")))
     working_dir = os.path.join(root, "runs", "{}_{}_{}_{}".format(lake, start_time.strftime('%Y%m%d%H%M'),
                                                                   end_time.strftime('%Y%m%d%H%M'),
                                                                   run_id))
@@ -22,11 +22,19 @@ def preprocess(run_id, lake, start_time, end_time, particles,
         x0, y0, x1, y1 = d3d_mitgcm_velocity_converter(file, velocity_field_dir, simulation_timestep)
 
     particles_path = os.path.join(working_dir, "particles.npz")
-    p = convert_to_grid_coordinates(particles, x0, y0, x1, y1)
-    p = flip_list_dict(p)
+    if grid_type=="cartesian":
+        p = convert_to_grid_coordinates(particles, x0, y0, x1, y1)
+        p = flip_list_dict(p)
+    elif grid_type=="curvilinear":
+        p = particles.copy()
+        p = flip_list_dict(p)
+    else:
+        print("Error in grid type. It must be either cartesian or curvilinear")
+    
     np.savez(particles_path, x_seed=p["x"], y_seed=p["y"], z_seed=p["z"])
 
-    configuration_file = os.path.join(working_dir, "configuration.py")
+    #configuration_file = os.path.join(working_dir, "configuration.py")
+    configuration_file = os.path.join(root, "ctracker", "configuration.py")
     shutil.copyfile(os.path.join(root, "ctracker", "configuration_template.py"), configuration_file)
 
     os.makedirs(os.path.join(working_dir, "output"), exist_ok=True)
