@@ -8,7 +8,7 @@ lakes = [
     {"name": "ageri", "particles": [689500, 220000], "type": "curvilinear"},
     {"name": "biel", "particles": [580269, 215464], "type": "curvilinear"},
     {"name": "caldonazzo", "particles": [674000, 5098000], "type": "cartesian"},
-    {"name": "garda", "particles": [850159, 48030], "type": "curvilinear"},
+    {"name": "garda", "particles": [628000, 5050000], "type": "curvilinear"},
     {"name": "geneva", "particles": [531350, 145124], "type": "curvilinear"},
     {"name": "greifensee", "particles": [693199, 245870], "type": "curvilinear"},
     {"name": "hallwil", "particles": [658735, 237277], "type": "cartesian"},

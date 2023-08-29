@@ -243,7 +243,7 @@ def plot_particle_tracking(working_dir, x0, y0, x1, y1,lake, save=False, bathy=F
     lon_arr = np.array([ii[0] for ii in latlon])
     lat_arr = np.array([ii[1] for ii in latlon])
     
-    if (lake=='caldonazzo'):
+    if ((lake=='caldonazzo') | (lake=='garda')):
         xs = utm.from_latlon(lat_arr, lon_arr)[0]
         ys = utm.from_latlon(lat_arr, lon_arr)[1]
     else:
