@@ -142,7 +142,10 @@ def extract_grid_d3d(file):
     (X0, Y0) = (xG[0, 0], yG[0, 0])
     (X1, Y1) = (xG[0, -1], yG[0, -1])
 
-    ind_surface = np.where(ds.ZK.data > 0)[0][0] - 1
+    if np.nanmax(ds.ZK.data) > 0:
+        ind_surface = np.where(ds.ZK.data > 0)[0][0] - 1
+    else:
+        ind_surface = len(ds.ZK.data) - 1
 
     ds.close()
 
@@ -189,6 +192,7 @@ def replace_string(file_path, target_string, replacement_string):
     with open(file_path, 'w') as file:
         file.write(modified_content)
 
+
 def latlng_to_ch1903(lat, lng):
     lat = lat * 3600
     lng = lng * 3600
@@ -215,14 +219,14 @@ def get_lake_boundaries(bucket="https://eawagrs.s3.eu-central-1.amazonaws.com"):
     return response.json()
 
 
-def plot_particle_tracking(working_dir, x0, y0, x1, y1,lake, save=False, bathy=False, plot=True,grid_type="cartesian"):
+def plot_particle_tracking(working_dir, x0, y0, x1, y1, lake, save=False, bathy=False, plot=True,
+                           grid_type="cartesian"):
     data = xr.open_dataset(os.path.join(working_dir, "output", "results_run.nc"), decode_times=True)
     inout = xr.open_dataset(os.path.join(working_dir, "output", "results_inout.nc"), decode_times=True)
 
     time_plt = data.time
     depth = np.array(data.Depth[:])
 
-    # Release depth which will be plotted
     z0_ini = [0, 30]
     zdata = []
     sel_pid = inout.pid.where((inout.z_ini > z0_ini[0]) & (inout.z_ini <= z0_ini[1]), drop=True)
@@ -232,24 +236,22 @@ def plot_particle_tracking(working_dir, x0, y0, x1, y1,lake, save=False, bathy=F
     zd.ztrack.load()
     zdata.append(zd)
 
-    # Convert grid to model co-ordinates
     xG = data.XG_p1
     yG = data.YG_p1
-    
-    # get the shoreline for further masking and plotting
+
     lakesjson = get_lake_boundaries(bucket="https://eawagrs.s3.eu-central-1.amazonaws.com")
-    lake_ind = np.where(np.array([ii['properties']['Name'] for ii in lakesjson['features']])==lake)[0][0]
+    lake_ind = np.where(np.array([ii['properties']['Name'] for ii in lakesjson['features']]) == lake)[0][0]
     latlon = (((lakesjson['features'])[lake_ind]['geometry']['coordinates'])[0])[:]
     lon_arr = np.array([ii[0] for ii in latlon])
     lat_arr = np.array([ii[1] for ii in latlon])
-    
-    if ((lake=='caldonazzo') | (lake=='garda')):
+
+    if ((lake == 'caldonazzo') | (lake == 'garda')):
         xs = utm.from_latlon(lat_arr, lon_arr)[0]
         ys = utm.from_latlon(lat_arr, lon_arr)[1]
     else:
-        xs,ys = latlng_to_ch1903(lat_arr, lon_arr)
-    
-    if grid_type=="cartesian":
+        xs, ys = latlng_to_ch1903(lat_arr, lon_arr)
+
+    if grid_type == "cartesian":
         gridAngle = np.arctan2(y1 - y0, x1 - x0)
         xg_plt = xG.to_masked_array().filled()
         yg_plt = yG.to_masked_array().filled()
@@ -326,44 +328,40 @@ def plot_particle_tracking(working_dir, x0, y0, x1, y1,lake, save=False, bathy=F
             if save:
                 out_dir = os.path.join(working_dir, "plots")
                 os.makedirs(out_dir, exist_ok=True)
-                plt.savefig(out_dir + "/plot" + '_' + str(time_plt[qq].values.astype("datetime64[m]")).replace("T", " ")[
-                                                      0:10] + 'H' + str(
-                    time_plt[qq].values.astype("datetime64[m]")).replace("T", " ")[11:13] + '.png', dpi=300,
-                            bbox_inches='tight')
+                plt.savefig(
+                    out_dir + "/plot" + '_' + str(time_plt[qq].values.astype("datetime64[m]")).replace("T", " ")[
+                                              0:10] + 'H' + str(
+                        time_plt[qq].values.astype("datetime64[m]")).replace("T", " ")[11:13] + '.png', dpi=300,
+                    bbox_inches='tight')
             if plot:
                 plt.show()
 
             plt.close()
-            
-    elif grid_type=="curvilinear":
+
+    elif grid_type == "curvilinear":
         xx_com = np.array(xG.data)
         yy_com = np.array(yG.data)
 
         xG_conv = xx_com
         yG_conv = yy_com
         outline = np.array(data.hFacC[0, :])
-        
-        # create the grid for spatiotemporal plots
+
         ds_offset = 100
         ds_bin = 50
         xp_conv = xG.to_masked_array().filled()
         yp_conv = yG.to_masked_array().filled()
-        x_arr = np.linspace((xp_conv[xp_conv>0].min()-ds_offset),(xp_conv[xp_conv>0].max()+ds_offset),np.ceil((xp_conv[xp_conv>0].max()-xp_conv[xp_conv>0].min())/ds_bin).astype(int))
-        y_arr = np.linspace((yp_conv[yp_conv>0].min()-ds_offset),(yp_conv[yp_conv>0].max()+ds_offset),np.ceil((yp_conv[yp_conv>0].max()-yp_conv[yp_conv>0].min())/ds_bin).astype(int))
-        xg_plt,yg_plt = np.meshgrid(x_arr,y_arr)
-        
-        #root = os.path.dirname(os.path.dirname(os.path.realpath("__file__")))
-        #xs, ys = np.genfromtxt(os.path.join(root, "lake_boundary", lake,"lake_boundary.ldb"),unpack=True)
-        #xs = xs[2:] # to remove the header from ldb file
-        #ys = ys[2:]
-        poly_path=Path([(xs[ii],ys[ii]) for ii in range(len(xs))])
-        coors=np.hstack((xg_plt[:-1,:-1].reshape(-1, 1), yg_plt[:-1,:-1].reshape(-1,1)))
-        mask_lake = poly_path.contains_points(coors).reshape(xg_plt[:-1,:-1].shape)
-        
+        x_arr = np.linspace((xp_conv[xp_conv > 0].min() - ds_offset), (xp_conv[xp_conv > 0].max() + ds_offset),
+                            np.ceil((xp_conv[xp_conv > 0].max() - xp_conv[xp_conv > 0].min()) / ds_bin).astype(int))
+        y_arr = np.linspace((yp_conv[yp_conv > 0].min() - ds_offset), (yp_conv[yp_conv > 0].max() + ds_offset),
+                            np.ceil((yp_conv[yp_conv > 0].max() - yp_conv[yp_conv > 0].min()) / ds_bin).astype(int))
+        xg_plt, yg_plt = np.meshgrid(x_arr, y_arr)
+
+        poly_path = Path([(xs[ii], ys[ii]) for ii in range(len(xs))])
+        coors = np.hstack((xg_plt[:-1, :-1].reshape(-1, 1), yg_plt[:-1, :-1].reshape(-1, 1)))
+        mask_lake = poly_path.contains_points(coors).reshape(xg_plt[:-1, :-1].shape)
+
         for qq in range(len(time_plt)):
-            ###############
             for zd in zdata:
-                # now = zd.sel(time=np.datetime64(cutoff_date), drop=True)
                 now = zd.sel(time=time_plt[qq], drop=True)
                 xp = (now.xtrack).to_masked_array().filled()
                 xp[xp > 1e9] = np.nan
@@ -372,29 +370,25 @@ def plot_particle_tracking(working_dir, x0, y0, x1, y1,lake, save=False, bathy=F
                 zp = now.ztrack.to_masked_array().filled()
                 zp[zp > 450] = np.nan
 
-            ###############   
-            part_no_snap, _, _ = np.histogram2d(xp, yp, bins=[xg_plt[0,:],yg_plt[:,0]])
+            part_no_snap, _, _ = np.histogram2d(xp, yp, bins=[xg_plt[0, :], yg_plt[:, 0]])
             part_no_snap = part_no_snap.T
             min_val = 2
-            part_no_snap[part_no_snap<min_val] = np.nan
+            part_no_snap[part_no_snap < min_val] = np.nan
             part_no_snap[~mask_lake] = np.nan
-            
-            ############### 
+
             part_depth_snap = part_no_snap.copy()
-            part_depth_snap[:,:] = 0
+            part_depth_snap[:, :] = 0
 
             for ii in range(len(xp)):
                 if ((~np.isnan(xp[ii])) & (~np.isnan(yp[ii]))):
-                    ind_x = np.searchsorted(0.5*(xg_plt[0,:-1]+xg_plt[0,1:]),xp[ii])
-                    ind_y = np.searchsorted(0.5*(yg_plt[:-1,0]+yg_plt[1:,0]),yp[ii])
-                    if ((~np.isnan(zp[ii])) & (ind_x<part_depth_snap.shape[1]) & (ind_y<part_depth_snap.shape[0])):
-                        part_depth_snap[ind_y,ind_x] = part_depth_snap[ind_y,ind_x]+zp[ii]
+                    ind_x = np.searchsorted(0.5 * (xg_plt[0, :-1] + xg_plt[0, 1:]), xp[ii])
+                    ind_y = np.searchsorted(0.5 * (yg_plt[:-1, 0] + yg_plt[1:, 0]), yp[ii])
+                    if ((~np.isnan(zp[ii])) & (ind_x < part_depth_snap.shape[1]) & (ind_y < part_depth_snap.shape[0])):
+                        part_depth_snap[ind_y, ind_x] = part_depth_snap[ind_y, ind_x] + zp[ii]
 
-            part_depth_snap = part_depth_snap/part_no_snap
-            # part_depth_snap[part_depth_snap>60] = np.nan
-            # part_no_snap[part_depth_snap>10] = np.nan
+            part_depth_snap = part_depth_snap / part_no_snap
             part_depth_snap[~mask_lake] = np.nan
-            
+
             fig_size = (8, 8)
             f = plt.figure(figsize=fig_size)
             ax = f.add_subplot(121)
@@ -402,13 +396,13 @@ def plot_particle_tracking(working_dir, x0, y0, x1, y1,lake, save=False, bathy=F
             if bathy:
                 plt.pcolormesh(xp_conv[:-1, :-1], yp_conv[:-1, :-1], depth, cmap='Greys', vmax=np.max(depth) * 1.5)
             else:
-                plt.plot(xp_conv, yp_conv,'ko',markersize=1,alpha=0.1)
-            plt.pcolormesh(xg_plt[:-1,:-1],yg_plt[:-1,:-1],part_no_snap, vmin=np.nanquantile(part_no_snap, 0.25),
+                plt.plot(xp_conv, yp_conv, 'ko', markersize=1, alpha=0.1)
+            plt.pcolormesh(xg_plt[:-1, :-1], yg_plt[:-1, :-1], part_no_snap, vmin=np.nanquantile(part_no_snap, 0.25),
                            vmax=np.nanquantile(part_no_snap, 0.75), cmap='viridis')
-            ax.plot(xs,ys, 'k-', lw=1.5)
-             
-            plt.xlim([xs.min()-500,xs.max()+500])
-            plt.ylim([ys.min()-500,ys.max()+500])
+            ax.plot(xs, ys, 'k-', lw=1.5)
+
+            plt.xlim([xs.min() - 500, xs.max() + 500])
+            plt.ylim([ys.min() - 500, ys.max() + 500])
             ax.set_aspect('equal')
             ax.set_xlabel("Lat (km CH1903)")
             ax.set_ylabel("Lon (km CH1903)")
@@ -424,12 +418,12 @@ def plot_particle_tracking(working_dir, x0, y0, x1, y1,lake, save=False, bathy=F
             if bathy:
                 plt.pcolormesh(xp_conv[:-1, :-1], yp_conv[:-1, :-1], depth, cmap='Greys', vmax=np.max(depth) * 1.5)
             else:
-                plt.plot(xp_conv, yp_conv,'ko',markersize=1,alpha=0.1)
-            plt.pcolormesh(xg_plt[:-1,:-1],yg_plt[:-1,:-1],part_depth_snap, cmap='jet', vmin=0, vmax=40)
-            ax2.plot(xs,ys, 'k-', lw=1.5)
-            
-            plt.xlim([xs.min()-500,xs.max()+500])
-            plt.ylim([ys.min()-500,ys.max()+500])
+                plt.plot(xp_conv, yp_conv, 'ko', markersize=1, alpha=0.1)
+            plt.pcolormesh(xg_plt[:-1, :-1], yg_plt[:-1, :-1], part_depth_snap, cmap='jet', vmin=0, vmax=40)
+            ax2.plot(xs, ys, 'k-', lw=1.5)
+
+            plt.xlim([xs.min() - 500, xs.max() + 500])
+            plt.ylim([ys.min() - 500, ys.max() + 500])
             ax2.set_aspect('equal')
             ax2.set_xlabel("Lat (km CH1903)")
             ax2.axes.yaxis.set_ticklabels([])
@@ -442,14 +436,15 @@ def plot_particle_tracking(working_dir, x0, y0, x1, y1,lake, save=False, bathy=F
             if save:
                 out_dir = os.path.join(working_dir, "plots")
                 os.makedirs(out_dir, exist_ok=True)
-                plt.savefig(out_dir + "/plot" + '_' + str(time_plt[qq].values.astype("datetime64[m]")).replace("T", " ")[
-                                                      0:10] + 'H' + str(
-                    time_plt[qq].values.astype("datetime64[m]")).replace("T", " ")[11:13] + '.png', dpi=300,
-                            bbox_inches='tight')
+                plt.savefig(
+                    out_dir + "/plot" + '_' + str(time_plt[qq].values.astype("datetime64[m]")).replace("T", " ")[
+                                              0:10] + 'H' + str(
+                        time_plt[qq].values.astype("datetime64[m]")).replace("T", " ")[11:13] + '.png', dpi=300,
+                    bbox_inches='tight')
             if plot:
                 plt.show()
 
             plt.close()
-    
+
     data.close()
     inout.close()

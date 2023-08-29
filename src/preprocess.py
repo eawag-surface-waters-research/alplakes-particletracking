@@ -8,7 +8,7 @@ def preprocess(run_id, lake, start_time, end_time, particles,
                api="https://alplakes-api.eawag.ch/simulations/file/delft3d-flow/{}/{}",
                simulation_timestep=30, simulation_output_timestep=10800, threads=8,
                grid_type="cartesian"):
-    root = os.path.dirname(os.path.dirname(os.path.realpath("__file__")))
+    root = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
     working_dir = os.path.join(root, "runs", "{}_{}_{}_{}".format(lake, start_time.strftime('%Y%m%d%H%M'),
                                                                   end_time.strftime('%Y%m%d%H%M'),
                                                                   run_id))
@@ -33,8 +33,7 @@ def preprocess(run_id, lake, start_time, end_time, particles,
     
     np.savez(particles_path, x_seed=p["x"], y_seed=p["y"], z_seed=p["z"])
 
-    #configuration_file = os.path.join(working_dir, "configuration.py")
-    configuration_file = os.path.join(root, "ctracker", "configuration.py")
+    configuration_file = os.path.join(working_dir, "configuration.py")
     shutil.copyfile(os.path.join(root, "ctracker", "configuration_template.py"), configuration_file)
 
     os.makedirs(os.path.join(working_dir, "output"), exist_ok=True)
