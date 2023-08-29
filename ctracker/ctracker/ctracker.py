@@ -423,12 +423,12 @@ class ctracker(object):
                     nx = (xx - xG[jseed, iseed]) / dX[jseed, iseed]
                     ny = (yy - yG[jseed, iseed]) / dY[jseed, iseed]
                 # in case there is some edge issue
-                if nx < 0 or nx >= 1 or ny < 0 or ny >= 1:
-                    print("\nInvalid point at "
-                          "x,y,z=%.2f,%.2f,%.2f" % (xx, yy, zz))
-                    print("i,j=%d,%d" % (iseed, jseed))
-                    print("nx,ny=%.3e,%.3e" % (nx, ny))
-                    continue
+                # if nx < 0 or nx >= 1 or ny < 0 or ny >= 1:
+                    # print("\nInvalid point at "
+                          # "x,y,z=%.2f,%.2f,%.2f" % (xx, yy, zz))
+                    # print("i,j=%d,%d" % (iseed, jseed))
+                    # print("nx,ny=%.3e,%.3e" % (nx, ny))
+                    # continue
 
                 z_here = zG[:, jseed, iseed]
                 if (zz >= z_here.max()) or (zz <= z_here.min()):

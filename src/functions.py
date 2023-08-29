@@ -11,6 +11,7 @@ from matplotlib.path import Path
 from MITgcmutils import mds, wrmds
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta, SU
+import utm
 
 
 def download_file(url, filename):
@@ -188,6 +189,31 @@ def replace_string(file_path, target_string, replacement_string):
     with open(file_path, 'w') as file:
         file.write(modified_content)
 
+def latlng_to_ch1903(lat, lng):
+    lat = lat * 3600
+    lng = lng * 3600
+    lat_aux = (lat - 169028.66) / 10000
+    lng_aux = (lng - 26782.5) / 10000
+    x = 2600072.37 + 211455.93 * lng_aux - 10938.51 * lng_aux * lat_aux - 0.36 * lng_aux * lat_aux ** 2 - 44.54 * lng_aux ** 3 - 2000000
+    y = 1200147.07 + 308807.95 * lat_aux + 3745.25 * lng_aux ** 2 + 76.63 * lat_aux ** 2 - 194.56 * lng_aux ** 2 * lat_aux + 119.79 * lat_aux ** 3 - 1000000
+    return x, y
+
+
+def ch1903_to_latlng(x, y):
+    x_aux = (x - 600000) / 1000000
+    y_aux = (y - 200000) / 1000000
+    lat = 16.9023892 + 3.238272 * y_aux - 0.270978 * x_aux ** 2 - 0.002528 * y_aux ** 2 - 0.0447 * x_aux ** 2 * y_aux - 0.014 * y_aux ** 3
+    lng = 2.6779094 + 4.728982 * x_aux + 0.791484 * x_aux * y_aux + 0.1306 * x_aux * y_aux ** 2 - 0.0436 * x_aux ** 3
+    lat = (lat * 100) / 36
+    lng = (lng * 100) / 36
+    return lat, lng
+
+
+def get_lake_boundaries(bucket="https://eawagrs.s3.eu-central-1.amazonaws.com"):
+    url = "{}/metadata/lakes.json".format(bucket)
+    response = requests.get(url)
+    return response.json()
+
 
 def plot_particle_tracking(working_dir, x0, y0, x1, y1,lake, save=False, bathy=False, plot=True,grid_type="cartesian"):
     data = xr.open_dataset(os.path.join(working_dir, "output", "results_run.nc"), decode_times=True)
@@ -209,6 +235,19 @@ def plot_particle_tracking(working_dir, x0, y0, x1, y1,lake, save=False, bathy=F
     # Convert grid to model co-ordinates
     xG = data.XG_p1
     yG = data.YG_p1
+    
+    # get the shoreline for further masking and plotting
+    lakesjson = get_lake_boundaries(bucket="https://eawagrs.s3.eu-central-1.amazonaws.com")
+    lake_ind = np.where(np.array([ii['properties']['Name'] for ii in lakesjson['features']])==lake)[0][0]
+    latlon = (((lakesjson['features'])[lake_ind]['geometry']['coordinates'])[0])[:]
+    lon_arr = np.array([ii[0] for ii in latlon])
+    lat_arr = np.array([ii[1] for ii in latlon])
+    
+    if ((lake=='caldonazzo') | (lake=='garda')):
+        xs = utm.from_latlon(lat_arr, lon_arr)[0]
+        ys = utm.from_latlon(lat_arr, lon_arr)[1]
+    else:
+        xs,ys = latlng_to_ch1903(lat_arr, lon_arr)
     
     if grid_type=="cartesian":
         gridAngle = np.arctan2(y1 - y0, x1 - x0)
@@ -313,10 +352,10 @@ def plot_particle_tracking(working_dir, x0, y0, x1, y1,lake, save=False, bathy=F
         y_arr = np.linspace((yp_conv[yp_conv>0].min()-ds_offset),(yp_conv[yp_conv>0].max()+ds_offset),np.ceil((yp_conv[yp_conv>0].max()-yp_conv[yp_conv>0].min())/ds_bin).astype(int))
         xg_plt,yg_plt = np.meshgrid(x_arr,y_arr)
         
-        root = os.path.dirname(os.path.dirname(os.path.realpath("__file__")))
-        xs, ys = np.genfromtxt(os.path.join(root, "lake_boundary", lake,"lake_boundary.ldb"),unpack=True)
-        xs = xs[2:] # to remove the header from ldb file
-        ys = ys[2:]
+        #root = os.path.dirname(os.path.dirname(os.path.realpath("__file__")))
+        #xs, ys = np.genfromtxt(os.path.join(root, "lake_boundary", lake,"lake_boundary.ldb"),unpack=True)
+        #xs = xs[2:] # to remove the header from ldb file
+        #ys = ys[2:]
         poly_path=Path([(xs[ii],ys[ii]) for ii in range(len(xs))])
         coors=np.hstack((xg_plt[:-1,:-1].reshape(-1, 1), yg_plt[:-1,:-1].reshape(-1,1)))
         mask_lake = poly_path.contains_points(coors).reshape(xg_plt[:-1,:-1].shape)
@@ -366,6 +405,8 @@ def plot_particle_tracking(working_dir, x0, y0, x1, y1,lake, save=False, bathy=F
                 plt.plot(xp_conv, yp_conv,'ko',markersize=1,alpha=0.1)
             plt.pcolormesh(xg_plt[:-1,:-1],yg_plt[:-1,:-1],part_no_snap, vmin=np.nanquantile(part_no_snap, 0.25),
                            vmax=np.nanquantile(part_no_snap, 0.75), cmap='viridis')
+            ax.plot(xs,ys, 'k-', lw=1.5)
+             
             plt.xlim([xs.min()-500,xs.max()+500])
             plt.ylim([ys.min()-500,ys.max()+500])
             ax.set_aspect('equal')
@@ -385,6 +426,7 @@ def plot_particle_tracking(working_dir, x0, y0, x1, y1,lake, save=False, bathy=F
             else:
                 plt.plot(xp_conv, yp_conv,'ko',markersize=1,alpha=0.1)
             plt.pcolormesh(xg_plt[:-1,:-1],yg_plt[:-1,:-1],part_depth_snap, cmap='jet', vmin=0, vmax=40)
+            ax2.plot(xs,ys, 'k-', lw=1.5)
             
             plt.xlim([xs.min()-500,xs.max()+500])
             plt.ylim([ys.min()-500,ys.max()+500])
