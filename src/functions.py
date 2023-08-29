@@ -1,6 +1,5 @@
 import os
 import netCDF4
-import shutil
 import random
 import requests
 import xarray as xr
@@ -10,8 +9,14 @@ import matplotlib.pyplot as plt
 from matplotlib.path import Path
 from MITgcmutils import mds, wrmds
 from datetime import datetime, timedelta
+from shapely.geometry import shape, mapping
+from shapely.ops import unary_union
 from dateutil.relativedelta import relativedelta, SU
 import utm
+import subprocess
+import tempfile
+from rasterio.mask import mask
+import rasterio
 
 
 def download_file(url, filename):
@@ -109,7 +114,7 @@ def extract_grid_d3d(file):
     yC[yC <= 0] = np.nan
     dx0_const = np.nanmean(np.diff(xG[1, :]))  # distance between two grid points along axis=1
     dx1_const = np.nanmean(np.diff(xG[:, 1]))  # distance between two grid points along axis=0
-    dgrid_const = np.sqrt((dx0_const) ** 2 + (dx1_const) ** 2)  # dx
+    dgrid_const_x = np.sqrt((dx0_const) ** 2 + (dx1_const) ** 2)  # dx
 
     # expand the grid to a rectangle
     for ii in range(xG.shape[1] - 1):  # usually all the items in xG[:,-1] are nan
@@ -127,6 +132,10 @@ def extract_grid_d3d(file):
     dx0_const = np.nanmean(np.diff(yG[1, :]))
     dx1_const = np.nanmean(np.diff(yG[:, 1]))
     dgrid_const = np.sqrt((dx0_const) ** 2 + (dx1_const) ** 2)
+
+    grid_type = "curvilinear"
+    if abs(dgrid_const - dgrid_const_x) < 10**-6:
+        grid_type = "cartesian"
 
     for ii in range(yG.shape[1] - 1):  # usually all the items in yG[:,-1] ar nan
         ind_strt = np.argwhere(~np.isnan(yG[:, ii]))[0][0]
@@ -149,11 +158,11 @@ def extract_grid_d3d(file):
 
     ds.close()
 
-    return xG, yG, xC, yC, dgrid_const, X0, Y0, X1, Y1, ind_surface
+    return xG, yG, xC, yC, dgrid_const, X0, Y0, X1, Y1, ind_surface, grid_type
 
 
 def d3d_mitgcm_velocity_converter(file, output_folder, dt):
-    xG, yG, xC, yC, dgrid_const, x0, y0, x1, y1, ind_surface = extract_grid_d3d(file)
+    xG, yG, xC, yC, dgrid_const, x0, y0, x1, y1, ind_surface, grid_type = extract_grid_d3d(file)
     with netCDF4.Dataset(file, 'r') as nc:
         time = nc.variables['time'][:]
         for i in range(len(time)):
@@ -181,8 +190,8 @@ def d3d_mitgcm_velocity_converter(file, output_folder, dt):
 
             wrmds(output_folder + '/3Dsnaps', uvw_data, ndims=[3],
                   dimlist=[uvel_data.shape[2], uvel_data.shape[1], uvel_data.shape[0]], dataprec=['float32'],
-                  nrecords=[3], times=time[i], fields=['UVEL', 'VVEL', 'WVEL'], deltat=dt, machineformat='l')
-    return x0, y0, x1, y1
+                  nrecords=[3], times=round(time[i] / 3600) * 3600, fields=['UVEL', 'VVEL', 'WVEL'], deltat=dt, machineformat='l')
+    return x0, y0, x1, y1, grid_type
 
 
 def replace_string(file_path, target_string, replacement_string):
@@ -219,6 +228,133 @@ def get_lake_boundaries(bucket="https://eawagrs.s3.eu-central-1.amazonaws.com"):
     return response.json()
 
 
+def get_satellite_products(satellite, lake, product, date, bucket="https://eawagrs.s3.eu-central-1.amazonaws.com"):
+    response = requests.get("{}/metadata/{}/{}_{}.json".format(bucket, satellite, lake, product))
+    files = response.json()
+    date_string = date.strftime("%Y%m%d")
+    on_day = []
+    for file in files:
+        if date_string in file["dt"]:
+            on_day.append(file)
+    if len(on_day) == 0:
+        raise ValueError("No products available on the {}".format(date_string))
+    elif len(on_day) == 1:
+        print("Only one product available on {}".format(date_string))
+        print(on_day[0]["k"])
+        print("{} pixels available".format(on_day[0]["vp"]))
+        return on_day[0]
+    else:
+        sorted_data = sorted(on_day, key=lambda x: x["vp"])
+        print("Multiple products available picked image with most most pixels {}".format(sorted_data[-1]["vp"]))
+        return sorted_data[-1]
+
+
+def generate_random_points(bbox, n):
+    min_lon, min_lat, max_lon, max_lat = bbox
+    random_points = []
+    for _ in range(n):
+        random_lon = random.uniform(min_lon, max_lon)
+        random_lat = random.uniform(min_lat, max_lat)
+        random_points.append((random_lon, random_lat))
+    return random_points
+
+
+def get_particles_from_satellite_image(product,
+                                       total_particles,
+                                       lake,
+                                       bucket="https://eawagrs.s3.eu-central-1.amazonaws.com",
+                                       valid_pixel_expression=True,
+                                       buffer=0.005,
+                                       percentile=0,
+                                       depth_min=0.5,
+                                       depth_max=1.0):
+    lakes = get_lake_boundaries()
+    original = {
+        "type": "Polygon",
+        "coordinates": [d for d in lakes["features"] if d["properties"]["Name"] == lake][0]["geometry"]["coordinates"]
+    }
+    main_polygon = shape(original)
+
+    inner_polygon = main_polygon.buffer(-buffer)
+    if inner_polygon.geom_type == "MultiPolygon":
+        inner_polygon = unary_union(inner_polygon)
+    boundary = {
+        "type": "Polygon",
+        "coordinates": [list(inner_polygon.exterior.coords)]
+    }
+    url = "{}/{}".format(bucket, product["k"])
+    response = requests.get(url)
+    if response.status_code == 200:
+        image_data = response.content
+        with tempfile.NamedTemporaryFile(suffix=".tif", delete=False) as temp_file:
+            temp_file.write(image_data)
+            temp_file_path = temp_file.name
+            with rasterio.open(temp_file_path) as src:
+                masked_image, masked_transform = mask(src, [boundary], crop=True, pad=True)
+
+                if valid_pixel_expression:
+                    valid_mask = (masked_image[0] != src.nodata) & (masked_image[0] != 0) & (masked_image[1] == 0)
+                else:
+                    valid_mask = (masked_image[0] != src.nodata) & (masked_image[0] != 0)
+
+                valid_points = np.argwhere(valid_mask)
+                valid_values = masked_image[0, valid_points[:, 0], valid_points[:, 1]]
+                valid_latitudes = []
+                valid_longitudes = []
+
+                percentile = np.percentile(valid_values, percentile)
+                total = np.nansum(valid_values[valid_values > percentile])
+                all_random_points = []
+                all_cell_values = []
+
+                for idx, (row, col) in enumerate(valid_points):
+                    if valid_values[idx] > percentile:
+                        lon, lat = rasterio.transform.xy(masked_transform, row, col)
+                        valid_latitudes.append(lat)
+                        valid_longitudes.append(lon)
+                        n = int((valid_values[idx] / total) * total_particles)
+
+                        bbox = (lon, lat, lon + masked_transform.a, lat + masked_transform.e)
+                        random_points = generate_random_points(bbox, n)
+                        all_random_points.extend(random_points)
+                        all_cell_values.extend([valid_values[idx]] * n)
+
+                random_longitudes, random_latitudes = zip(*all_random_points)
+                random_longitudes = np.array(random_longitudes)
+                random_latitudes = np.array(random_latitudes)
+                if (lake == 'caldonazzo') | (lake == 'garda'):
+                    x = utm.from_latlon(random_latitudes, random_longitudes)[0]
+                    y = utm.from_latlon(random_latitudes, random_longitudes)[1]
+                else:
+                    x, y = latlng_to_ch1903(random_latitudes, random_longitudes)
+
+                particles = []
+                for i in range(len(x)):
+                    particles.append({"x": x[i], "y": y[i], "z": random.uniform(depth_min, depth_max)})
+
+                plt.plot(*zip(*boundary["coordinates"][0]), color='r', label='Buffered Border')
+                plt.plot(*zip(*original["coordinates"][0]), color='k', label='Lake Border')
+
+                plt.scatter(random_longitudes, random_latitudes, c=all_cell_values, s=.5, cmap='viridis', marker='x',
+                            label='Points')
+
+                plt.colorbar(label='Pixel Value')
+                plt.xlabel('Longitude')
+                plt.ylabel('Latitude')
+                plt.legend()
+                plt.show()
+        temp_file.close()
+        return particles
+    else:
+        raise ValueError("Failed to download image. Status code: {}".format(response.status_code))
+
+
+def run_ctracker(working_dir):
+    command = "conda run -n ctracker python run.py {}".format(working_dir)
+    script_directory = os.path.abspath(os.path.join(working_dir, "../..", "ctracker"))
+    subprocess.run(command, check=True, shell=True, cwd=script_directory)
+
+
 def plot_particle_tracking(working_dir, x0, y0, x1, y1, lake, save=False, bathy=False, plot=True,
                            grid_type="cartesian"):
     data = xr.open_dataset(os.path.join(working_dir, "output", "results_run.nc"), decode_times=True)
@@ -245,7 +381,7 @@ def plot_particle_tracking(working_dir, x0, y0, x1, y1, lake, save=False, bathy=
     lon_arr = np.array([ii[0] for ii in latlon])
     lat_arr = np.array([ii[1] for ii in latlon])
 
-    if ((lake == 'caldonazzo') | (lake == 'garda')):
+    if (lake == 'caldonazzo') | (lake == 'garda'):
         xs = utm.from_latlon(lat_arr, lon_arr)[0]
         ys = utm.from_latlon(lat_arr, lon_arr)[1]
     else:
