@@ -8,19 +8,31 @@ hydrodynamic models.
 
 ## Getting Started
 
+### Clone repository
+
+```commandline
+git clone git@github.com:eawag-surface-waters-research/alplakes-particletracking.git
+cd alplakes-particletracking
+```
+
 ### Install python environments
 
 Two python environments are required to run PT simulations using the Alplakes framework:
 
 1) Python 3 - Preprocessing and postprocessing (see requirements.txt)
 
-`conda create --name particletracking --file requirements.txt python=3.9`
+```commandline
+conda env create -f environment.yml
+```
 
 2) Python 2.7 - Running ctracker (see ctracker/requirements.txt)
 
-`conda create --name ctracker --file ctracker/requirements.txt python=2.7`
-
-It is suggested to use Anaconda to manage the environments.
+```commandline
+conda env create -f ctracker/environment.yml
+conda activate ctracker
+cd ctracker
+python setup.py build_ext --inplace
+```
 
 ### Running particle tracking
 
