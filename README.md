@@ -4,7 +4,9 @@
 
 The Alplakes project uses [ctracker](https://c4science.ch/tag/c-tracker/) a modified version of 
 [TRACMASS](https://www.tracmass.org/) to run particle tracking (PT) simulations based on the velocity fields of the 3D 
-hydrodynamic models. 
+hydrodynamic models.
+
+⚠️ This repository is in the process of being replaced by a new particle tracking framework for Alplakes based on Parcels. Available [here](https://github.com/eawag-surface-waters-research/alplakes-parcels).
 
 ## Getting Started
 
